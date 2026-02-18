@@ -1,0 +1,52 @@
+# Alternative: Simple Docker Mailserver (lighter weight)
+# Use this if Mailu is too heavy
+
+version: '3.8'
+
+services:
+  mailserver:
+    image: docker.io/mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail
+    domainname: kayorama.nl
+    env_file: mailserver.env
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS
+      - "587:587"    # Submission
+      - "993:993"    # IMAPS
+    volumes:
+      - mailserver_data:/var/mail
+      - mailserver_state:/var/mail-state
+      - mailserver_logs:/var/log/mail
+      - ./config:/tmp/docker-mailserver
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    restart: always
+    networks:
+      - mail
+      - coolify
+
+  # Rainloop Webmail
+  webmail:
+    image: hardware/rainloop:latest
+    container_name: webmail
+    volumes:
+      - rainloop_data:/rainloop/data
+    restart: always
+    networks:
+      - mail
+      - coolify
+
+volumes:
+  mailserver_data:
+  mailserver_state:
+  mailserver_logs:
+  rainloop_data:
+
+networks:
+  mail:
+    driver: bridge
+  coolify:
+    external: true

@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  # Mailu - Full email server stack
+  mailu:
+    image: mailu/admin:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_certs:/certs
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS
+      - "587:587"    # Submission
+      - "110:110"    # POP3
+      - "995:995"    # POP3S
+      - "143:143"    # IMAP
+      - "993:993"    # IMAPS
+    networks:
+      - mailu
+      - coolify
+
+  # SMTP server
+  smtp:
+    image: mailu/postfix:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_certs:/certs
+    depends_on:
+      - mailu
+    networks:
+      - mailu
+
+  # IMAP server
+  imap:
+    image: mailu/dovecot:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_certs:/certs
+    depends_on:
+      - mailu
+    networks:
+      - mailu
+
+  # Webmail (Roundcube)
+  webmail:
+    image: mailu/roundcube:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - webmail_data:/data
+    depends_on:
+      - mailu
+    networks:
+      - mailu
+      - coolify
+
+  # Antispam
+  antispam:
+    image: mailu/rspamd:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_certs:/certs
+    depends_on:
+      - mailu
+    networks:
+      - mailu
+
+  # Antivirus
+  antivirus:
+    image: mailu/clamav:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+    networks:
+      - mailu
+
+  # Fetchmail (for external accounts)
+  fetchmail:
+    image: mailu/fetchmail:latest
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+    depends_on:
+      - mailu
+    networks:
+      - mailu
+
+  # Redis for caching
+  redis:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - mailu
+
+volumes:
+  mailu_data:
+  mailu_certs:
+  webmail_data:
+  redis_data:
+
+networks:
+  mailu:
+    driver: bridge
+  coolify:
+    external: true
