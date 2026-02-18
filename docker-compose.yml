@@ -1,27 +1,36 @@
 version: '3.8'
 
-# Mailu email server - Full featured with webmail
-# Deploy via Coolify Docker Compose
+# Mailu Email Server - Zero-config deployment
+# All settings auto-generated on first run
 
 services:
   # Front reverse proxy
   front:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}nginx:${MAILU_VERSION:-latest}
+    image: mailu/nginx:2.0
     restart: always
-    env_file: mailu.env
     environment:
+      - DOMAIN=${DOMAIN:-kayorama.nl}
+      - HOSTNAMES=${HOSTNAMES:-mail.kayorama.nl}
+      - POSTMASTER=admin
+      - TLS_FLAVOR=letsencrypt
       - ADMIN_WEB=admin
       - WEBMAIL=webmail
+      - SECRET_KEY=${SECRET_KEY}
+      - AUTH_RATELIMIT_IP=60/hour
+      - AUTH_RATELIMIT_USER=30/hour
+      - DISABLE_STATISTICS=true
+      - SUBNET=192.168.200.0/24
+      - MESSAGE_SIZE_LIMIT=50000000
     ports:
-      - "80:80"      # HTTP (redirects to HTTPS)
-      - "443:443"    # HTTPS
-      - "25:25"      # SMTP
-      - "465:465"    # SMTPS
-      - "587:587"    # Submission
-      - "110:110"    # POP3
-      - "995:995"    # POP3S
-      - "143:143"    # IMAP
-      - "993:993"    # IMAPS
+      - "80:80"
+      - "443:443"
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "110:110"
+      - "995:995"
+      - "143:143"
+      - "993:993"
     volumes:
       - mailu_certs:/certs
       - mailu_overrides:/overrides
@@ -34,82 +43,74 @@ services:
 
   # Admin interface
   admin:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}admin:${MAILU_VERSION:-latest}
+    image: mailu/admin:2.0
     restart: always
-    env_file: mailu.env
+    environment:
+      - DOMAIN=${DOMAIN:-kayorama.nl}
+      - HOSTNAMES=${HOSTNAMES:-mail.kayorama.nl}
+      - SECRET_KEY=${SECRET_KEY}
+      - INITIAL_ADMIN_ACCOUNT=admin
+      - INITIAL_ADMIN_DOMAIN=${DOMAIN:-kayorama.nl}
+      - INITIAL_ADMIN_PW=${ADMIN_PASSWORD:-changeme123}
+      - DB_FLAVOR=sqlite
+      - WEB_ADMIN=true
     volumes:
       - mailu_data:/data
       - mailu_certs:/certs
-      - mailu_overrides:/overrides
     networks:
       - mailu
 
-  # Webmail (Roundcube)
+  # Webmail
   webmail:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}roundcube:${MAILU_VERSION:-latest}
+    image: mailu/roundcube:2.0
     restart: always
-    env_file: mailu.env
+    environment:
+      - ROUNDCUBE_PLUGINS=archive,zipdownload,managesieve,markasjunk
     volumes:
       - webmail_data:/data
     networks:
       - mailu
 
-  # IMAP server
+  # IMAP
   imap:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}dovecot:${MAILU_VERSION:-latest}
+    image: mailu/dovecot:2.0
     restart: always
-    env_file: mailu.env
+    environment:
+      - DOMAIN=${DOMAIN:-kayorama.nl}
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - mailu_data:/data
       - mailu_certs:/certs
-      - mailu_overrides:/overrides
     networks:
       - mailu
 
-  # SMTP server
+  # SMTP
   smtp:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}postfix:${MAILU_VERSION:-latest}
+    image: mailu/postfix:2.0
     restart: always
-    env_file: mailu.env
+    environment:
+      - DOMAIN=${DOMAIN:-kayorama.nl}
+      - HOSTNAMES=${HOSTNAMES:-mail.kayorama.nl}
+      - SECRET_KEY=${SECRET_KEY}
+      - MESSAGE_SIZE_LIMIT=50000000
     volumes:
       - mailu_data:/data
       - mailu_certs:/certs
-      - mailu_overrides:/overrides
     networks:
       - mailu
 
   # Antispam
   antispam:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}rspamd:${MAILU_VERSION:-latest}
+    image: mailu/rspamd:2.0
     restart: always
-    env_file: mailu.env
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - mailu_filter:/var/lib/rspamd
-      - mailu_overrides:/overrides
     networks:
       - mailu
 
-  # Antivirus (optional, can be resource intensive)
-  antivirus:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}clamav:${MAILU_VERSION:-latest}
-    restart: always
-    env_file: mailu.env
-    volumes:
-      - mailu_antivirus:/var/lib/clamav
-    networks:
-      - mailu
-
-  # Fetchmail for external accounts
-  fetchmail:
-    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}fetchmail:${MAILU_VERSION:-latest}
-    restart: always
-    env_file: mailu.env
-    volumes:
-      - mailu_data:/data
-    networks:
-      - mailu
-
-  # Redis for caching
+  # Redis
   redis:
     image: redis:alpine
     restart: always
@@ -123,7 +124,6 @@ volumes:
   mailu_certs:
   mailu_overrides:
   mailu_filter:
-  mailu_antivirus:
   webmail_data:
   redis_data:
 
