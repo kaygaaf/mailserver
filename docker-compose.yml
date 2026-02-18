@@ -1,115 +1,63 @@
 version: '3.8'
 
+# Docker Mailserver - Full-featured email server
+# Docs: https://docker-mailserver.github.io/docker-mailserver/latest/
+
 services:
-  front:
-    image: mailu/nginx:2.0
-    restart: always
-    environment:
-      DOMAIN: kayorama.nl
-      HOSTNAMES: mail.kayorama.nl
-      POSTMASTER: admin
-      TLS_FLAVOR: letsencrypt
-      ADMIN_WEB: admin
-      WEBMAIL: webmail
-      SECRET_KEY: 7a8f9c2d4e6b1a3f5c8d9e2b4a6c7f8d9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b
-      AUTH_RATELIMIT_IP: 60/hour
-      AUTH_RATELIMIT_USER: 30/hour
-      DISABLE_STATISTICS: "true"
-      SUBNET: 192.168.201.0/24
-      MESSAGE_SIZE_LIMIT: "50000000"
+  mailserver:
+    image: docker.io/mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail
+    domainname: kayorama.nl
+    env_file: mailserver.env
     ports:
-      - "8080:80"
-      - "8443:443"
-      - "25:25"
-      - "465:465"
-      - "587:587"
-      - "993:993"
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS  
+      - "587:587"    # Submission
+      - "993:993"    # IMAPS
     volumes:
-      - mailu_certs:/certs
-      - mailu_overrides:/overrides
+      - mailserver_data:/var/mail
+      - mailserver_state:/var/mail-state
+      - mailserver_logs:/var/log/mail
+      - ./config:/tmp/docker-mailserver
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    restart: always
     networks:
-      - mailu
+      - mail
       - coolify
-    depends_on:
-      - admin
-      - webmail
+    healthcheck:
+      test: "ss -tlnp | grep -q ':25' || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Webmail - Rainloop
+  webmail:
+    image: hardware/rainloop:latest
+    container_name: webmail
+    volumes:
+      - rainloop_data:/rainloop/data
+    restart: always
+    networks:
+      - mail
+      - coolify
     labels:
       - traefik.enable=true
-      - traefik.http.routers.mail.rule=Host(`mail.kayorama.nl`)
-      - traefik.http.routers.mail.tls=true
-      - traefik.http.routers.mail.tls.certresolver=letsencrypt
-
-  admin:
-    image: mailu/admin:2.0
-    restart: always
-    environment:
-      DOMAIN: kayorama.nl
-      HOSTNAMES: mail.kayorama.nl
-      SECRET_KEY: 7a8f9c2d4e6b1a3f5c8d9e2b4a6c7f8d9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b
-      INITIAL_ADMIN_ACCOUNT: admin
-      INITIAL_ADMIN_DOMAIN: kayorama.nl
-      INITIAL_ADMIN_PW: KayoramaMail2026!
-      DB_FLAVOR: sqlite
-      WEB_ADMIN: "true"
-    volumes:
-      - mailu_data:/data
-      - mailu_certs:/certs
-    networks:
-      - mailu
-
-  webmail:
-    image: mailu/roundcube:2.0
-    restart: always
-    environment:
-      ROUNDCUBE_PLUGINS: archive,zipdownload,managesieve,markasjunk
-    volumes:
-      - webmail_data:/data
-    networks:
-      - mailu
-
-  imap:
-    image: mailu/dovecot:2.0
-    restart: always
-    environment:
-      DOMAIN: kayorama.nl
-      SECRET_KEY: 7a8f9c2d4e6b1a3f5c8d9e2b4a6c7f8d9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b
-    volumes:
-      - mailu_data:/data
-      - mailu_certs:/certs
-    networks:
-      - mailu
-
-  smtp:
-    image: mailu/postfix:2.0
-    restart: always
-    environment:
-      DOMAIN: kayorama.nl
-      HOSTNAMES: mail.kayorama.nl
-      SECRET_KEY: 7a8f9c2d4e6b1a3f5c8d9e2b4a6c7f8d9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b
-      MESSAGE_SIZE_LIMIT: "50000000"
-    volumes:
-      - mailu_data:/data
-      - mailu_certs:/certs
-    networks:
-      - mailu
-
-  redis:
-    image: redis:alpine
-    restart: always
-    volumes:
-      - redis_data:/data
-    networks:
-      - mailu
+      - traefik.http.routers.webmail.rule=Host(`mail.kayorama.nl`)
+      - traefik.http.routers.webmail.tls=true
+      - traefik.http.routers.webmail.tls.certresolver=letsencrypt
+      - traefik.http.services.webmail.loadbalancer.server.port=8888
 
 volumes:
-  mailu_data:
-  mailu_certs:
-  mailu_overrides:
-  webmail_data:
-  redis_data:
+  mailserver_data:
+  mailserver_state:
+  mailserver_logs:
+  rainloop_data:
 
 networks:
-  mailu:
+  mail:
     driver: bridge
   coolify:
     external: true
