@@ -1,15 +1,20 @@
 version: '3.8'
 
+# Mailu email server - Full featured with webmail
+# Deploy via Coolify Docker Compose
+
 services:
-  # Mailu - Full email server stack
-  mailu:
-    image: mailu/admin:latest
+  # Front reverse proxy
+  front:
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}nginx:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
-    volumes:
-      - mailu_data:/data
-      - mailu_certs:/certs
+    environment:
+      - ADMIN_WEB=admin
+      - WEBMAIL=webmail
     ports:
+      - "80:80"      # HTTP (redirects to HTTPS)
+      - "443:443"    # HTTPS
       - "25:25"      # SMTP
       - "465:465"    # SMTPS
       - "587:587"    # Submission
@@ -17,81 +22,90 @@ services:
       - "995:995"    # POP3S
       - "143:143"    # IMAP
       - "993:993"    # IMAPS
+    volumes:
+      - mailu_certs:/certs
+      - mailu_overrides:/overrides
     networks:
       - mailu
       - coolify
+    depends_on:
+      - admin
+      - webmail
 
-  # SMTP server
-  smtp:
-    image: mailu/postfix:latest
+  # Admin interface
+  admin:
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}admin:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
     volumes:
       - mailu_data:/data
       - mailu_certs:/certs
-    depends_on:
-      - mailu
-    networks:
-      - mailu
-
-  # IMAP server
-  imap:
-    image: mailu/dovecot:latest
-    restart: always
-    env_file: mailu.env
-    volumes:
-      - mailu_data:/data
-      - mailu_certs:/certs
-    depends_on:
-      - mailu
+      - mailu_overrides:/overrides
     networks:
       - mailu
 
   # Webmail (Roundcube)
   webmail:
-    image: mailu/roundcube:latest
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}roundcube:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
     volumes:
       - webmail_data:/data
-    depends_on:
-      - mailu
     networks:
       - mailu
-      - coolify
 
-  # Antispam
-  antispam:
-    image: mailu/rspamd:latest
+  # IMAP server
+  imap:
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}dovecot:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
     volumes:
       - mailu_data:/data
       - mailu_certs:/certs
-    depends_on:
-      - mailu
+      - mailu_overrides:/overrides
     networks:
       - mailu
 
-  # Antivirus
+  # SMTP server
+  smtp:
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}postfix:${MAILU_VERSION:-latest}
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_data:/data
+      - mailu_certs:/certs
+      - mailu_overrides:/overrides
+    networks:
+      - mailu
+
+  # Antispam
+  antispam:
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}rspamd:${MAILU_VERSION:-latest}
+    restart: always
+    env_file: mailu.env
+    volumes:
+      - mailu_filter:/var/lib/rspamd
+      - mailu_overrides:/overrides
+    networks:
+      - mailu
+
+  # Antivirus (optional, can be resource intensive)
   antivirus:
-    image: mailu/clamav:latest
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}clamav:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
     volumes:
-      - mailu_data:/data
+      - mailu_antivirus:/var/lib/clamav
     networks:
       - mailu
 
-  # Fetchmail (for external accounts)
+  # Fetchmail for external accounts
   fetchmail:
-    image: mailu/fetchmail:latest
+    image: ${DOCKER_ORG:-mailu}/${DOCKER_PREFIX:-}fetchmail:${MAILU_VERSION:-latest}
     restart: always
     env_file: mailu.env
     volumes:
       - mailu_data:/data
-    depends_on:
-      - mailu
     networks:
       - mailu
 
@@ -107,6 +121,9 @@ services:
 volumes:
   mailu_data:
   mailu_certs:
+  mailu_overrides:
+  mailu_filter:
+  mailu_antivirus:
   webmail_data:
   redis_data:
 

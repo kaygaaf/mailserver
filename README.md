@@ -1,148 +1,261 @@
-# Kayorama Mail Server
+# Mailu Email Server Setup Guide
 
-Full-featured email server using Mailu on Coolify.
+Complete email server with webmail, multi-domain support, and mobile compatibility.
 
-## Features
+## Quick Start
 
-- **Multi-domain support** - Host email for multiple domains
-- **Webmail** - Roundcube interface at /webmail
-- **Mobile support** - Works with Apple Mail, Gmail, Outlook
-- **Security** - Let's Encrypt SSL, DKIM, DMARC, SPF
-- **Antispam** - Rspamd with machine learning
-- **Antivirus** - ClamAV scanning
-- **Admin panel** - Web-based administration
+### 1. Configure Environment
 
-## Ports Used
+Edit `mailu.env`:
 
-| Port | Service | Purpose |
-|------|---------|---------|
-| 25 | SMTP | Incoming mail |
-| 465 | SMTPS | Secure SMTP (legacy) |
-| 587 | Submission | Outgoing mail (STARTTLS) |
-| 110 | POP3 | Mail retrieval (avoid) |
-| 995 | POP3S | Secure POP3 |
-| 143 | IMAP | Mail retrieval (STARTTLS) |
-| 993 | IMAPS | Secure IMAP |
+```bash
+# Required changes:
+DOMAIN=kayorama.nl                    # Your main domain
+HOSTNAMES=mail.kayorama.nl            # Mail server hostname
+INITIAL_ADMIN_PW=YourStrongPassword!  # Admin password
+SECRET_KEY=$(openssl rand -hex 32)    # Generate secret key
+```
 
-## Setup
+### 2. DNS Records
 
-1. **Update Configuration**
-   - Edit `mailu.env`
-   - Change `DOMAIN` to your main domain
-   - Change `HOSTNAME` to mail.yourdomain.com
-   - Set `SECRET_KEY` (generate: `openssl rand -hex 32`)
-   - Set `INITIAL_ADMIN_PW` to a strong password
-   - Add additional domains to `DOMAINS=`
+Add these DNS records for each domain:
 
-2. **DNS Records**
+**A Record:**
+```
+mail.kayorama.nl    A     YOUR_SERVER_IP
+```
 
-   For each domain, add these DNS records:
+**MX Record:**
+```
+kayorama.nl         MX    10 mail.kayorama.nl
+```
 
-   ```
-   # A Record
-   mail.domain.com    A     YOUR_SERVER_IP
+**SPF (Sender Policy Framework):**
+```
+kayorama.nl         TXT   "v=spf1 mx a:mail.kayorama.nl -all"
+```
 
-   # MX Record
-   domain.com         MX    10 mail.domain.com
+**DMARC:**
+```
+_dmarc.kayorama.nl  TXT   "v=DMARC1; p=quarantine; rua=mailto:admin@kayorama.nl"
+```
 
-   # SPF
-   domain.com         TXT   "v=spf1 mx a:mail.domain.com -all"
+**DKIM:** (Generate after setup in admin panel)
+```
+mail._domainkey.kayorama.nl  TXT  "v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY"
+```
 
-   # DKIM (added automatically after setup)
-   mail._domainkey    TXT   (auto-generated)
+**Reverse DNS (PTR):**
+Contact your VPS provider to set PTR record:
+```
+YOUR_IP → mail.kayorama.nl
+```
 
-   # DMARC
-   _dmarc             TXT   "v=DMARC1; p=quarantine; rua=mailto:admin@domain.com"
-   ```
+### 3. Deploy on Coolify
 
-3. **Deploy on Coolify**
-   - Create new project
-   - Add Docker Compose resource
-   - Upload docker-compose.yml and mailu.env
-   - Deploy
+1. Create new project in Coolify
+2. Add Docker Compose resource
+3. Repository: `https://github.com/kaygaaf/mailserver`
+4. Upload `docker-compose.yml` and `mailu.env`
+5. Deploy
 
-4. **Access**
-   - Admin: https://mail.kayorama.nl/admin
-   - Webmail: https://mail.kayorama.nl/webmail
+### 4. Access Services
+
+- **Webmail:** https://mail.kayorama.nl/webmail
+- **Admin Panel:** https://mail.kayorama.nl/admin
+- **Default Login:** admin@kayorama.nl / YourPassword
 
 ## Mobile Setup
 
-### Apple Mail (iPhone/iPad/Mac)
+### iPhone/iPad (Apple Mail)
 
-**Incoming Mail (IMAP):**
+1. Settings → Mail → Accounts → Add Account → Other
+2. Add Mail Account
+3. **Name:** Your Name
+4. **Email:** user@kayorama.nl
+5. **Password:** YourPassword
+6. **Description:** Kayorama Mail
+
+**Incoming Mail Server:**
 - Hostname: mail.kayorama.nl
-- Username: user@domain.com
-- Password: your-password
+- Username: user@kayorama.nl
+- Password: YourPassword
 - Port: 993 (SSL)
 
-**Outgoing Mail (SMTP):**
+**Outgoing Mail Server:**
 - Hostname: mail.kayorama.nl
-- Username: user@domain.com
-- Password: your-password
+- Username: user@kayorama.nl
+- Password: YourPassword
 - Port: 587 (STARTTLS) or 465 (SSL)
 
-### Gmail (Android/Web)
+### Gmail (Android)
 
-**Add account → Other:**
-- Email: user@domain.com
-- Password: your-password
-- IMAP Server: mail.kayorama.nl:993
-- SMTP Server: mail.kayorama.nl:587
+1. Gmail app → Add account → Other
+2. Enter email: user@kayorama.nl
+3. Choose **Personal (IMAP/POP)**
+4. Password: YourPassword
+
+**Incoming:**
+- Server: mail.kayorama.nl
+- Port: 993
+- Security: SSL/TLS
+
+**Outgoing:**
+- Server: mail.kayorama.nl
+- Port: 587
+- Security: STARTTLS
 
 ### Outlook
 
-**Manual Setup:**
-- Account Type: IMAP
-- Incoming: mail.kayorama.nl:993 (SSL)
-- Outgoing: mail.kayorama.nl:587 (STARTTLS)
+1. File → Add Account → Manual setup
+2. Choose **IMAP/POP**
+3. **Incoming:**
+   - Server: mail.kayorama.nl
+   - Port: 993
+   - Encryption: SSL/TLS
+4. **Outgoing:**
+   - Server: mail.kayorama.nl
+   - Port: 587
+   - Encryption: STARTTLS
 
 ## Adding Domains
 
-1. Log into admin panel
-2. Go to "Mail domains"
-3. Click "Add domain"
-4. Add DNS records for new domain
-5. Generate DKIM key in admin panel
-6. Add DKIM TXT record to DNS
+1. Login to admin panel: https://mail.kayorama.nl/admin
+2. Go to **Mail domains**
+3. Click **Add domain**
+4. Enter domain name
+5. Add DNS records for new domain
+6. Generate DKIM key in admin panel
+7. Add DKIM TXT record to DNS
 
 ## Adding Users
 
 1. Admin panel → Users
-2. Click "Add user"
-3. Set username, domain, password
-4. Optional: Set quota, enable/disable
+2. Click **Add user**
+3. Set:
+   - Email: user@domain.com
+   - Password: (strong password)
+   - Quota: (optional)
+   - Enabled: Yes
+
+## Aliases
+
+Create aliases that forward to other addresses:
+
+1. Admin panel → Aliases
+2. Click **Add alias**
+3. Source: alias@domain.com
+4. Destination: user@domain.com
+
+## Auto-Reply (Vacation)
+
+Users can set in Roundcube:
+1. Login to webmail
+2. Settings → Vacation
+3. Enable and compose message
+
+## Filtering (Sieve)
+
+Create filters in Roundcube:
+1. Settings → Filters
+2. Create new filter
+3. Set conditions and actions
+
+## Security Features
+
+- **TLS/SSL:** Let's Encrypt certificates
+- **DKIM:** DomainKeys Identified Mail
+- **SPF:** Sender Policy Framework
+- **DMARC:** Domain-based Message Authentication
+- **Antispam:** Rspamd with machine learning
+- **Antivirus:** ClamAV scanning
+- **Rate Limiting:** Brute force protection
 
 ## Troubleshooting
 
-**Can't send email:**
-- Check port 587/465 is open
-- Verify SPF record
-- Check if IP is blacklisted: mxtoolbox.com/blacklists.aspx
+### Can't Send Email
 
-**Can't receive email:**
-- Check MX record
-- Verify port 25 is open
-- Check spam folder
+1. Check port 587/465 is open: `telnet mail.kayorama.nl 587`
+2. Verify SPF record: `dig TXT kayorama.nl`
+3. Check IP reputation: https://mxtoolbox.com/blacklists.aspx
+4. Verify reverse DNS (PTR) is set
 
-**SSL errors:**
-- Wait for Let's Encrypt (can take a few minutes)
-- Check DNS A record points to server
+### Can't Receive Email
 
-## Security
+1. Check MX record: `dig MX kayorama.nl`
+2. Verify port 25 is open: `telnet mail.kayorama.nl 25`
+3. Check firewall rules
+4. Review logs: `docker logs mailserver-front-1`
 
-- Change default admin password immediately
-- Use strong passwords for all accounts
-- Enable 2FA in admin panel if available
-- Keep server updated
-- Monitor logs for abuse
+### SSL Certificate Issues
+
+1. Wait 5-10 minutes for Let's Encrypt
+2. Verify DNS A record points to server
+3. Check domain is accessible: `curl -I https://mail.kayorama.nl`
+
+### Login Issues
+
+1. Verify user exists in admin panel
+2. Check password (case sensitive)
+3. Try webmail first to confirm credentials
+4. Check rate limiting logs
 
 ## Backup
 
-Mail data is in Docker volumes:
-- `mailu_data` - All emails and config
-- `mailu_certs` - SSL certificates
+### Automated Backup Script
 
-Backup command:
 ```bash
-docker run --rm -v mailu_data:/data -v $(pwd):/backup alpine tar czf /backup/mailu-backup.tar.gz -C /data .
+#!/bin/bash
+BACKUP_DIR=/backups/mailu
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Create backup
+mkdir -p $BACKUP_DIR
+docker run --rm \
+  -v mailserver_mailu_data:/data \
+  -v $BACKUP_DIR:/backup \
+  alpine tar czf /backup/mailu-$DATE.tar.gz -C /data .
+
+# Keep only last 7 backups
+ls -t $BACKUP_DIR/mailu-*.tar.gz | tail -n +8 | xargs rm -f
 ```
+
+Add to crontab:
+```
+0 2 * * * /path/to/backup.sh
+```
+
+## Monitoring
+
+Check mail queue:
+```bash
+docker exec mailserver-smtp-1 postqueue -p
+```
+
+Check logs:
+```bash
+docker logs mailserver-front-1
+docker logs mailserver-smtp-1
+docker logs mailserver-imap-1
+```
+
+Check status:
+```bash
+docker ps | grep mailserver
+```
+
+## Updates
+
+Update Mailu:
+```bash
+cd /path/to/mailserver
+docker-compose pull
+docker-compose up -d
+```
+
+## Resources
+
+- Mailu Docs: https://mailu.io/
+- Roundcube Docs: https://roundcube.net/
+- Test Email: https://www.mail-tester.com/
+- DNS Check: https://mxtoolbox.com/
